@@ -4,12 +4,50 @@ import sqlite3
 connection = sqlite3.connect("league_bot.db")
 cursor = connection.cursor()
 
+def team_exists(team_name):
+    cursor.execute('''
+        SELECT * FROM teams WHERE team_name = ?
+    ''', (team_name,))
+    return cursor.fetchone() != None
+
+def calculate_bet_outcomes(match_id):
+    cursor.execute('''
+    SELECT * FROM Bets WHERE match_id = ?
+    ''', (match_id,))
+    result = cursor.fetchall()
+
+def get_team_name(team_id):
+    cursor.execute('''
+            SELECT team_name
+            FROM teams
+            WHERE team_id = ?
+            ''',
+            (team_id,)
+        )
+    return cursor.fetchone()[0]
+    
+    
+def get_bet_matches_info():
+    update_bet_status_true()
+    update_bet_status_false()
+    cursor.execute('''
+        SELECT team1, team2, match_date
+        FROM matches
+        WHERE bet_status = TRUE
+    ''')
+    result = cursor.fetchall()
+    for i in range(len(result)):
+        result[i] = list(result[i])
+        result[i][0] = get_team_name(result[i][0])
+        result[i][1] = get_team_name(result[i][1])
+    return result
+
 def get_current_season(league_id="bl1"):
     result = requests.get(f"https://api.openligadb.de/getavailableleagues")
     data = result.json()
     season = 0
     for i in data:
-        if i["leagueId"] == league_id:
+        if i["leagueShortcut"] == league_id:
             season = i["leagueSeason"]
     return season
 
@@ -21,20 +59,47 @@ def add_match(match_id, league_id, team1, team2, date):
     )
     connection.commit()
 
+def get_set_points(match_id):
+    cursor.execute('''
+        SELECT SUM(set_points) FROM bets WHERE match_id = ?''',
+        (match_id,)
+    )
+    result = cursor.fetchone()
+    if result:
+        return int(result[0])
 
+def get_team_id(team_name):
+    cursor.execute('''
+        SELECT team_id FROM teams WHERE team_name = ?               
+    ''', (team_name,))
+    return int(cursor.fetchone()[0])
+
+def add_team(team_name, icon_url):
+    cursor.execute('''
+        INSERT OR IGNORE INTO teams (team_name, icon_link)               
+        VALUES (?, ?)''',
+        (team_name, icon_url,)
+    )
+    connection.commit()
 
 def load_season():
     league = "bl1"
     season = get_current_season(league)
-    url = f"https://api.openligadb.de/getmatchdata/{league}/{season}"
+    url = f"https://api.openligadb.de/getmatchdata/{league}/{season}/"
     result = requests.get(url)
     data = result.json()
     for i in data:
-        add_match(i["matchID"], i["leagueId"], i["team1"]["teamName"], i["team2"]["teamName"], i["matchDateTime"])
+        if not team_exists(i["team1"]["teamName"]):
+            add_team(i["team1"]["teamName"], i["team1"]["teamIconUrl"])
+        if not team_exists(i["team2"]["teamName"]):
+            add_team(i["team2"]["teamName"], i["team2"]["teamIconUrl"])
+        team1_id = get_team_id(i["team1"]["teamName"])
+        team2_id = get_team_id(i["team2"]["teamName"])
+        add_match(i["matchID"], i["leagueId"], team1_id, team2_id, i["matchDateTime"])
 
 def update_bet_status_true():
     cursor.execute('''
-        UPDATE matches SET bet_status = True WHERE match_date BETWEEN DATE("now") AND DATE("now", "+3 day")
+        UPDATE matches SET bet_status = True WHERE match_date BETWEEN DATE("now") AND DATE("now", "+7 day")
     ''')
     connection.commit()
 
@@ -108,8 +173,8 @@ cursor.execute('''
         bet_id INTEGER PRIMARY KEY,
         player_tag INTEGER,
         match_id INTEGER,
-        team1 TEXT,
-        team2 TEXT,
+        team1 INTEGER,
+        team2 INTEGER,
         set_points INTEGER,
         won_points INTEGER
         )
@@ -126,17 +191,28 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS matches (
         match_id INTEGER PRIMARY KEY,
         league_id TEXT,
-        team1 TEXT,
-        team2 TEXT,
+        team1 INTEGER,
+        team2 INTEGER,
         goals1 INTEGER,
         goals2 INTEGER,
         match_date DATE,
         bet_status BOOLEAN
         )
 ''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS teams (
+        team_id INTEGER PRIMARY KEY,
+        team_name TEXT,
+        icon_link TEXT
+    )               
+''')
+
 connection.commit()
 
-load_season()
+print(get_bet_matches_info())
+
+#load_season()
 
 #add_player("testUSER")
 
