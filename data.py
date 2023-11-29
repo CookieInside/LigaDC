@@ -18,12 +18,12 @@ def calculate_bet_outcomes(match_id):
 
 def get_team_name(team_id):
     cursor.execute('''
-            SELECT team_name
-            FROM teams
-            WHERE team_id = ?
-            ''',
-            (team_id,)
-        )
+        SELECT team_name
+        FROM teams
+        WHERE team_id = ?
+        ''',
+        (team_id,)
+    )
     return cursor.fetchone()[0]
     
     
