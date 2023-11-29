@@ -156,6 +156,51 @@ def add_player(player_tag):
     )
     connection.commit()
 
+def set_player_points(player_tag, new_amount):
+    cursor.execute('''
+        UPDATE players SET points = ?
+        WHERE player_tag = ?
+        ''',
+        (new_amount, player_tag,)
+    )
+    connection.commit()
+
+def set_player_won(bet_id, won_points):
+    cursor.execute('''
+        UPDATE bets SET won_points = ?
+        WHERE bet_id = ?
+        ''',
+        (won_points, bet_id,)
+    )
+    connection.commit()
+
+def get_result_type(match_id):
+    cursor.execute('''
+        SELECT goals1, goals2
+        FROM matches
+        WHERE match_id = ?
+        ''',
+        (match_id,)
+    )
+    result = cursor.fetchone()
+    print(result)
+
+def get_bets(match_id):
+    cursor.execute('''
+        SELECT player_tag, team1, team2, set_points, bet_id
+        FROM bets
+        WHERE match_id = ?
+        ''',
+        (match_id)
+    )
+    match_value = get_set_points(match_id)
+    sum_bet_rating = 0
+    result = cursor.fetchall()
+    for i in range(len(result)):
+        result[i] = list(result[i])
+
+
+
 def create_bet(player_tag, match_id, team1, team2, set_points):
     if set_points <= get_player_points(player_tag):
         cursor.execute('''
@@ -163,6 +208,7 @@ def create_bet(player_tag, match_id, team1, team2, set_points):
             VALUES (?, ?, ?, ?, ?, ?)''',
             (player_tag, match_id, team1, team2, set_points, 0,)
         )
+        set_player_points(player_tag, get_player_points(player_tag) - set_points)
         connection.commit()
         return "bet was set successfully."
     else:
@@ -171,7 +217,7 @@ def create_bet(player_tag, match_id, team1, team2, set_points):
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS bets (
         bet_id INTEGER PRIMARY KEY,
-        player_tag INTEGER,
+        player_tag TEXT,
         match_id INTEGER,
         team1 INTEGER,
         team2 INTEGER,
@@ -210,12 +256,14 @@ cursor.execute('''
 
 connection.commit()
 
-print(get_bet_matches_info())
+#print(get_bet_matches_info())
 
-#load_season()
+load_season()
+
+get_result_type()
 
 #add_player("testUSER")
 
 #print(get_player_points("testUSER"))
 
-#update_results()
+update_results()
