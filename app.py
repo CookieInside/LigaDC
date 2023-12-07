@@ -5,7 +5,9 @@ import data
 intents = discord.Intents.default()
 intents.message_content = True
 client = commands.Bot(command_prefix='!', intents=intents)
-TOKEN = ""
+TOKEN = open("../token", "r+").readline()
+
+print(TOKEN)
 
 @client.event
 async def on_ready():
