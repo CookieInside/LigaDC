@@ -14,8 +14,26 @@ def calculate_bet_outcomes(match_id):
     cursor.execute('''
     SELECT * FROM Bets WHERE match_id = ?
     ''', (match_id,))
+    all_points = get_set_points(match_id)
+    goals = get_result_type(match_id)
+    result_type = goals[0] - goals[1]
     result = cursor.fetchall()
-
+    value_points_list = []
+    all_value_points = 0.0
+    for i in range(len(result)):
+        result[i] = list(result[i])
+        player_points = 0
+        if (result[i][3] - result[i][4] > 0 and result_type > 0) or (result[i][3] - result[i][4] == 0 and result_type == 0) or (result[i][3] - result[i][4] < 0 and result_type < 0):
+            player_points += 1.5
+            if (result[i][3] - result[i][4]) == result_type:
+                player_points += 1.0
+                value_points_list.append(player_points)
+        all_value_points += player_points
+    
+    for i in range(len(result)):
+        set_player_won(result[i][0], (value_points_list[i] / all_value_points) * all_points)
+        set_player_points(result[i][1], get_player_points(result[i][1]) + ((value_points_list[i] / all_value_points) * all_points))
+        
 def get_team_name(team_id):
     cursor.execute('''
         SELECT team_name
@@ -24,8 +42,7 @@ def get_team_name(team_id):
         ''',
         (team_id,)
     )
-    return cursor.fetchone()[0]
-    
+    return cursor.fetchone()[0] 
     
 def get_bet_matches_info():
     update_bet_status_true()
@@ -112,9 +129,10 @@ def update_bet_status_false():
 def get_match_result(id):
     result = requests.get(f"https://api.openligadb.de/getmatchdata/{id}/")
     data = result.json()
-    goals = [None, None]
-    goals[0] = int(data["matchResults"][len(data["matchResults"])-1]["pointsTeam1"])
-    goals[1] = int(data["matchResults"][len(data["matchResults"])-1]["pointsTeam2"])
+    goals = [0, 0]
+    if len(data["matchResults"]) > 0:
+        goals[0] = int(data["matchResults"][len(data["matchResults"])-1]["pointsTeam1"])
+        goals[1] = int(data["matchResults"][len(data["matchResults"])-1]["pointsTeam2"])
     return goals
 
 def get_player_points(player_tag):
@@ -147,6 +165,7 @@ def update_results():
     for i in result:
         goals = get_match_result(i[0])
         add_result(i[0], goals1=goals[0], goals2=goals[1])
+        calculate_bet_outcomes(i[0])
 
 def add_player(player_tag):
     cursor.execute('''
@@ -183,7 +202,7 @@ def get_result_type(match_id):
         (match_id,)
     )
     result = cursor.fetchone()
-    print(result)
+    return(list(result))
 
 def get_bets(match_id):
     cursor.execute('''
@@ -198,8 +217,6 @@ def get_bets(match_id):
     result = cursor.fetchall()
     for i in range(len(result)):
         result[i] = list(result[i])
-
-
 
 def create_bet(player_tag, match_id, team1, team2, set_points):
     if set_points <= get_player_points(player_tag):
@@ -258,12 +275,12 @@ connection.commit()
 
 #print(get_bet_matches_info())
 
-load_season()
+#load_season()
 
-get_result_type()
+#print(get_result_type(66634))
 
 #add_player("testUSER")
 
 #print(get_player_points("testUSER"))
 
-update_results()
+#update_results()
