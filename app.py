@@ -7,7 +7,6 @@ intents.message_content = True
 client = commands.Bot(command_prefix='!', intents=intents)
 TOKEN = open("../token", "r+").readline()
 
-print(TOKEN)
 
 @client.event
 async def on_ready():
@@ -17,3 +16,9 @@ async def on_ready():
 @client.command(name="test")
 async def test(ctx, args):
     await ctx.send("Du sagtest: " + args)
+
+@client.command(name="addme")
+async def add_me(ctx):
+    data.add_player(ctx.user)
+
+client.run(TOKEN)
