@@ -3,6 +3,7 @@ import sqlite3
 
 connection = sqlite3.connect("league_bot.db")
 cursor = connection.cursor()
+current_season = ""
 
 def team_exists(team_name):
     cursor.execute('''
@@ -43,20 +44,31 @@ def get_team_name(team_id):
         (team_id,)
     )
     return cursor.fetchone()[0] 
+
+def get_team_short(team_id):
+    cursor.execute('''
+        SELECT team_short
+        FROM teams
+        WHERE team_id = ?
+        ''',
+        (team_id,)
+    )
+    return cursor.fetchone()[0] 
     
 def get_bet_matches_info():
     update_bet_status_true()
     update_bet_status_false()
     cursor.execute('''
-        SELECT team1, team2, match_date
+        SELECT team1, team2, match_date, JULIANDAY(match_date) - JULIANDAY("now")
         FROM matches
         WHERE bet_status = TRUE
     ''')
     result = cursor.fetchall()
     for i in range(len(result)):
         result[i] = list(result[i])
-        result[i][0] = get_team_name(result[i][0])
-        result[i][1] = get_team_name(result[i][1])
+        result[i][0] = get_team_short(result[i][0])
+        result[i][1] = get_team_short(result[i][1])
+        result[i][3] = str(result[i][3])[0]
     return result
 
 def get_current_season(league_id="bl1"):
@@ -91,28 +103,31 @@ def get_team_id(team_name):
     ''', (team_name,))
     return int(cursor.fetchone()[0])
 
-def add_team(team_name, icon_url):
+def add_team(team_name, team_short, icon_url):
     cursor.execute('''
-        INSERT OR IGNORE INTO teams (team_name, icon_link)               
-        VALUES (?, ?)''',
-        (team_name, icon_url,)
+        INSERT OR IGNORE INTO teams (team_name, team_short, icon_link)               
+        VALUES (?, ?, ?)''',
+        (team_name, team_short, icon_url,)
     )
     connection.commit()
 
 def load_season():
+    global current_season
     league = "bl1"
     season = get_current_season(league)
-    url = f"https://api.openligadb.de/getmatchdata/{league}/{season}/"
-    result = requests.get(url)
-    data = result.json()
-    for i in data:
-        if not team_exists(i["team1"]["teamName"]):
-            add_team(i["team1"]["teamName"], i["team1"]["teamIconUrl"])
-        if not team_exists(i["team2"]["teamName"]):
-            add_team(i["team2"]["teamName"], i["team2"]["teamIconUrl"])
-        team1_id = get_team_id(i["team1"]["teamName"])
-        team2_id = get_team_id(i["team2"]["teamName"])
-        add_match(i["matchID"], i["leagueId"], team1_id, team2_id, i["matchDateTime"])
+    if not season == current_season:
+        url = f"https://api.openligadb.de/getmatchdata/{league}/{season}/"
+        result = requests.get(url)
+        data = result.json()
+        for i in data:
+            if not team_exists(i["team1"]["teamName"]):
+                add_team(i["team1"]["teamName"], i["team1"]["shortName"], i["team1"]["teamIconUrl"])
+            if not team_exists(i["team2"]["teamName"]):
+                add_team(i["team2"]["teamName"], i["team2"]["shortName"], i["team2"]["teamIconUrl"])
+            team1_id = get_team_id(i["team1"]["teamName"])
+            team2_id = get_team_id(i["team2"]["teamName"])
+            add_match(i["matchID"], i["leagueId"], team1_id, team2_id, i["matchDateTime"])
+            current_season = season
 
 def update_bet_status_true():
     cursor.execute('''
@@ -267,6 +282,7 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS teams (
         team_id INTEGER PRIMARY KEY,
         team_name TEXT,
+        team_short TEXT,
         icon_link TEXT
     )               
 ''')
